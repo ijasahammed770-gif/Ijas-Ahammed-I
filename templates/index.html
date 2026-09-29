@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PocketSmart AI</title>
+<style>
+  :root { --brand:#5b3fd6; --bg:#f5f4fb; --card:#fff; --text:#22203a; --muted:#6b6985; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:system-ui,Segoe UI,Arial,sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--brand); color:#fff; padding:20px; text-align:center; }
+  header p { margin:4px 0 0; opacity:.85; }
+  main { max-width:900px; margin:20px auto; padding:0 16px; }
+  .tabs { display:flex; gap:8px; margin-bottom:16px; }
+  .tabs button { flex:1; padding:12px; border:0; border-radius:10px; background:#e4e0f7; color:var(--brand); font-weight:600; cursor:pointer; }
+  .tabs button.active { background:var(--brand); color:#fff; }
+  form { background:var(--card); padding:20px; border-radius:14px; display:none; gap:12px; flex-direction:column; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  form.active { display:flex; }
+  label { font-size:14px; font-weight:600; display:flex; flex-direction:column; gap:6px; }
+  input, select { padding:10px; border:1px solid #d5d2ea; border-radius:8px; font-size:15px; }
+  .go { padding:12px; border:0; border-radius:10px; background:var(--brand); color:#fff; font-size:16px; font-weight:600; cursor:pointer; }
+  .go:disabled { opacity:.6; cursor:wait; }
+  #status { margin:16px 0; color:var(--muted); }
+  #status.error { color:#c0262d; }
+  .summary { background:var(--card); padding:16px; border-radius:14px; margin-top:16px; }
+  .breakdown { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .chip { background:#e4e0f7; color:var(--brand); padding:6px 12px; border-radius:20px; font-size:14px; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:14px; margin-top:16px; }
+  .card { background:var(--card); border-radius:14px; padding:16px; box-shadow:0 2px 8px rgba(0,0,0,.06); }
+  .card h3 { margin:0 0 6px; font-size:17px; }
+  .tag { font-size:12px; color:var(--muted); }
+  .price { font-size:20px; font-weight:700; color:var(--brand); margin:8px 0; }
+  .card a { display:inline-block; margin-top:8px; color:var(--brand); font-weight:600; text-decoration:none; }
+</style>
+</head>
+<body>
+<header>
+  <h1>PocketSmart AI</h1>
+  <p>Your smart budget &amp; recommendation assistant</p>
+</header>
+
+<main>
+  <div class="tabs">
+    <button class="active" data-tab="home">Home Planner</button>
+    <button data-tab="party">Party Planner</button>
+    <button data-tab="jewelry">Jewelry Planner</button>
+  </div>
+
+  <form id="home" class="active" data-url="/generate-home">
+    <label>Budget (₹)<input name="budget" type="number" min="1" required placeholder="50000"></label>
+    <label>Room
+      <select name="room"><option>Living Room</option><option>Kitchen</option><option>Bedroom</option><option>Dining Room</option></select>
+    </label>
+    <label>Items &amp; quantities<input name="items" required placeholder="3 lights, 2 ceiling fans, 1 dining table"></label>
+    <button class="go">Generate Smart Plan</button>
+  </form>
+
+  <form id="party" data-url="/generate-party">
+    <label>Total budget (₹)<input name="budget" type="number" min="1" required placeholder="80000"></label>
+    <label>Guest count<input name="guests" type="number" min="1" required placeholder="50"></label>
+    <label>Event type
+      <select name="event"><option>Birthday</option><option>Wedding</option><option>Corporate</option><option>Anniversary</option></select>
+    </label>
+    <label>Venue details<input name="venue" placeholder="Indoor hall in Hyderabad"></label>
+    <button class="go">Generate Smart Plan</button>
+  </form>
+
+  <form id="jewelry" data-url="/generate-jewelry">
+    <label>Budget (₹)<input name="budget" type="number" min="1" required placeholder="15000"></label>
+    <label>Occasion
+      <select name="occasion"><option>Wedding</option><option>Party</option><option>Festival</option><option>Office</option></select>
+    </label>
+    <label>Style preference<input name="style" placeholder="Traditional, minimal, gold..."></label>
+    <label>Outfit image (optional)<input name="image" type="file" accept="image/*"></label>
+    <button class="go">Generate Smart Plan</button>
+  </form>
+
+  <div id="status"></div>
+  <div id="results"></div>
+</main>
+
+<script>
+  const status = document.getElementById("status");
+  const results = document.getElementById("results");
+
+  document.querySelectorAll(".tabs button").forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll(".tabs button, form").forEach(el => el.classList.remove("active"));
+      btn.classList.add("active");
+      document.getElementById(btn.dataset.tab).classList.add("active");
+      results.innerHTML = ""; status.textContent = "";
+    };
+  });
+
+  document.querySelectorAll("form").forEach(form => {
+    form.onsubmit = async (e) => {
+      e.preventDefault();
+      const button = form.querySelector(".go");
+      button.disabled = true;
+      status.className = ""; status.textContent = "Generating your plan...";
+      results.innerHTML = "";
+      try {
+        const res = await fetch(form.dataset.url, { method: "POST", body: new FormData(form) });
+        if (!res.ok) throw new Error("Server error " + res.status + ": " + await res.text());
+        const data = await res.json();
+        console.log("RESPONSE:", data);
+        render(data);
+        status.textContent = "";
+      } catch (err) {
+        status.className = "error"; status.textContent = "Error: " + err.message;
+      } finally { button.disabled = false; }
+    };
+  });
+
+  function esc(s) { const d = document.createElement("div"); d.textContent = s ?? ""; return d.innerHTML; }
+  const rupee = n => "₹" + Number(n || 0).toLocaleString("en-IN");
+
+  function render(data) {
+    const recs = data.recommendations || [];
+    if (!recs.length) { results.innerHTML = "<p>No recommendations came back. Check the terminal for errors.</p>"; return; }
+    const chips = (data.budget_breakdown || []).map(b => `<span class="chip">${esc(b.category)}: ${rupee(b.amount)}</span>`).join("");
+    const cards = recs.map(r => `
+      <div class="card">
+        <span class="tag">${esc(r.category)} • ${esc(r.platform)}</span>
+        <h3>${esc(r.name)}</h3>
+        <div class="price">${rupee(r.price_inr)}</div>
+        <div>${esc(r.reason)}</div>
+        <a href="${esc(r.link)}" target="_blank" rel="noopener">View on ${esc(r.platform)} →</a>
+      </div>`).join("");
+    results.innerHTML = `<div class="summary"><strong>${esc(data.summary)}</strong><div class="breakdown">${chips}</div></div><div class="grid">${cards}</div>`;
+  }
+</script>
+</body>
+</html>
